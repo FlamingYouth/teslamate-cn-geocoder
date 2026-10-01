@@ -1,5 +1,7 @@
 # TeslaMate
 
+> **非官方中国地址查询补丁 / Unofficial China geocoder patch**：基于官方 v4.3.0，可选百度地址查询，不修改采集和数据库结构。部署、限制和同版本回退见 [中文说明](README_CN.md)。下方保留上游介绍，徽章指向上游，不代表本补丁测试结果。
+
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-green.svg)](https://github.com/teslamate-org/teslamate/blob/main/NOTICE)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10859/badge)](https://www.bestpractices.dev/projects/10859)
 [![CI](https://github.com/teslamate-org/teslamate/actions/workflows/devops.yml/badge.svg)](https://github.com/teslamate-org/teslamate/actions/workflows/devops.yml)

@@ -22,7 +22,7 @@ ENV MIX_ENV=prod
 WORKDIR /opt/app/elixir
 
 COPY elixir/mix.exs elixir/mix.lock ./
-RUN mix deps.get --only $MIX_ENV
+RUN HEX_HTTP_CONCURRENCY=1 HEX_HTTP_TIMEOUT=120 mix deps.get --only $MIX_ENV
 
 COPY elixir/config/$MIX_ENV.exs config/$MIX_ENV.exs
 COPY elixir/config/config.exs config/config.exs
@@ -33,6 +33,8 @@ RUN npm ci --prefix ./assets --progress=false --no-audit --loglevel=error
 
 COPY elixir/assets assets
 COPY elixir/priv/static priv/static
+# Optional build-only Erlang flags for QEMU emulation; native builds leave empty.
+ARG ERL_FLAGS
 RUN mix assets.deploy
 
 COPY elixir/lib lib
@@ -79,6 +81,13 @@ USER nonroot:nonroot
 COPY --chown=nonroot:nonroot --chmod=555 entrypoint.sh /
 COPY --from=builder --chown=nonroot:nonroot --chmod=555 /opt/built .
 RUN mkdir $SRTM_CACHE
+
+ARG SOURCE_REVISION=unknown
+LABEL org.opencontainers.image.source="https://github.com/FlamingYouth/teslamate-cn-geocoder" \
+      org.opencontainers.image.version="4.3.0-cn.1" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.title="Unofficial TeslaMate v4.3.0 China geocoder patch"
 
 EXPOSE 4000
 

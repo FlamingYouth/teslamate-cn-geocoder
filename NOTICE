@@ -49,3 +49,9 @@ tag corresponds to the artifacts published for that version.
 
 TeslaMate is an independent project and is not affiliated with, endorsed by, or
 sponsored by Tesla, Inc. "Tesla" and related marks are trademarks of Tesla, Inc.
+
+Modified distribution (2026-10-01): unofficial TeslaMate v4.3.0 China address
+lookup patch, maintained by FlamingYouth. This is not an official TeslaMate
+release. Corresponding Source for this modified distribution:
+https://github.com/FlamingYouth/teslamate-cn-geocoder
+Image release: 4.3.0-cn.1. See README_CN.md for changes and limitations.

@@ -1,0 +1,12 @@
+.git/
+.local/
+geocoder.env
+.env
+.env.*
+elixir/deps/
+elixir/_build/
+**/node_modules
+**/*.secret.exs
+**/*.bck
+**/*.dump
+import/

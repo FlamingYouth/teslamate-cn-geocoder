@@ -10,3 +10,10 @@ elixir/priv/static/assets
 **/node_modules
 import/
 teslamate.bck
+.env
+.env.*
+.local/
+geocoder.env
+**/*.secret.exs
+**/*.bck
+**/*.dump

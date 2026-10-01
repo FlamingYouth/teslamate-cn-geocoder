@@ -112,6 +112,31 @@ end
 config :teslamate,
   default_geofence: System.get_env("DEFAULT_GEOFENCE")
 
+# Runtime-only credentials: never pass these as Docker build arguments.
+geocoding_provider =
+  case System.get_env("GEOCODING_PROVIDER", "nominatim") do
+    "nominatim" -> :nominatim
+    "baidu" -> :baidu
+    _ -> raise "GEOCODING_PROVIDER must be nominatim or baidu"
+  end
+
+baidu_ak = System.get_env("BAIDU_MAP_AK", "") |> String.trim()
+baidu_sk = System.get_env("BAIDU_MAP_SK", "") |> String.trim()
+
+if geocoding_provider == :baidu and baidu_ak == "" do
+  raise "BAIDU_MAP_AK is required when GEOCODING_PROVIDER=baidu"
+end
+
+geocoding_timeout =
+  case Integer.parse(System.get_env("GEOCODING_TIMEOUT_MS", "5000")) do
+    {value, ""} when value in 100..10_000 -> value
+    _ -> raise "GEOCODING_TIMEOUT_MS must be an integer between 100 and 10000"
+  end
+
+config :teslamate,
+  geocoding_provider: geocoding_provider,
+  baidu_geocoder: [ak: baidu_ak, sk: baidu_sk, timeout: geocoding_timeout]
+
 case System.get_env("DATABASE_SOCKET_DIR") do
   nil ->
     config :teslamate, TeslaMate.Repo,

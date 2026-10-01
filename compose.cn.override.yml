@@ -1,0 +1,5 @@
+services:
+  teslamate:
+    image: ${TESLAMATE_CN_IMAGE:-registry.cn-hangzhou.aliyuncs.com/bigbey/tesla-mate:4.3.0-cn.1}
+    env_file:
+      - ./geocoder.env

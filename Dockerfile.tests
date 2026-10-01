@@ -1,0 +1,13 @@
+ARG BUILDER_IMAGE=codex-teslamate-cn-builder:4.3.0-cn.1
+FROM ${BUILDER_IMAGE}
+ENV MIX_ENV=test ELIXIR_ASSERT_TIMEOUT=2000
+WORKDIR /opt/app/elixir
+COPY elixir/mix.exs elixir/mix.lock ./
+COPY VERSION NOTICE LICENSE ../
+COPY elixir/config/test.exs config/test.exs
+COPY elixir/config/runtime.exs config/runtime.exs
+COPY elixir/lib lib
+COPY elixir/test test
+ARG ERL_FLAGS
+RUN HEX_HTTP_CONCURRENCY=1 HEX_HTTP_TIMEOUT=120 mix deps.get --only test && mix deps.compile && mix compile --warnings-as-errors
+CMD ["mix", "test", "--warnings-as-errors"]

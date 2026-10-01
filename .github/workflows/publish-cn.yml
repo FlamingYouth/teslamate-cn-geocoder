@@ -1,0 +1,118 @@
+name: Verify native architectures and mirror tested image to GHCR
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_digest:
+        description: Leave empty to test source only; use tested Aliyun digest (sha256:...) to verify and mirror
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  ALIYUN_IMAGE: registry.cn-hangzhou.aliyuncs.com/bigbey/tesla-mate
+  IMAGE_TAG: 4.3.0-cn.1
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    env:
+      SOURCE_DIGEST: ${{ inputs.source_digest }}
+      EXPECTED_ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Validate input and published image provenance
+        if: ${{ inputs.source_digest != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image="$ALIYUN_IMAGE@$SOURCE_DIGEST"
+          docker pull --platform "linux/$EXPECTED_ARCH" "$image"
+          test "$(docker inspect --format '{{.Architecture}}' "$image")" = "$EXPECTED_ARCH"
+          test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")" = "$GITHUB_SHA"
+          test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$image")" = "https://github.com/FlamingYouth/teslamate-cn-geocoder"
+          docker run --rm --network none --entrypoint /opt/app/bin/teslamate \
+            -e DATABASE_HOST=unused -e DATABASE_USER=unused -e DATABASE_PASS=unused -e DATABASE_NAME=unused \
+            -e DISABLE_MQTT=true -e GEOCODING_PROVIDER=nominatim "$image" eval \
+            'm = TeslaMate.Locations.Geocoder.Baidu; {:module, ^m} = Code.ensure_loaded(m); true = m.signature("/geocoder/v2/", [address: "百度大厦", output: "json", ak: "yourak"], "yoursk") == "7de5a22212ffaa9e326444c75a58f9a0"; IO.puts("release_module_verified")'
+      - name: Build matching source and full test environment
+        run: |
+          docker build --target builder -t cn-builder .
+          docker build -f Dockerfile.tests --build-arg BUILDER_IMAGE=cn-builder -t cn-tests .
+      - name: Compare release code to the checked-out source build
+        if: ${{ inputs.source_digest != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            lib/teslamate-4.3.0/ebin/Elixir.TeslaMate.Locations.Geocoder.Baidu.beam
+            lib/teslamate-4.3.0/ebin/Elixir.TeslaMate.Locations.Geocoder.beam
+            lib/teslamate-4.3.0/ebin/Elixir.TeslaMate.Locations.beam
+            lib/teslamate-4.3.0/ebin/Elixir.TeslaMate.Repair.beam
+            releases/4.3.0/runtime.exs
+          )
+          docker run --rm --network none --workdir /opt/built --entrypoint sha256sum cn-builder "${files[@]}" > source-code.sha256
+          docker run --rm --network none --workdir /opt/app --entrypoint sha256sum "$ALIYUN_IMAGE@$SOURCE_DIGEST" "${files[@]}" > release-code.sha256
+          diff -u source-code.sha256 release-code.sha256
+      - name: Run complete suite in an isolated network
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker network create --internal cn-ci-test
+          docker run -d --name cn-ci-db --network cn-ci-test -e POSTGRES_PASSWORD=ci-test-only postgres:18-trixie
+          for attempt in $(seq 1 30); do
+            if docker exec cn-ci-db pg_isready -U postgres; then break; fi
+            sleep 1
+          done
+          docker exec cn-ci-db pg_isready -U postgres
+          docker run --rm --network cn-ci-test \
+            -e DATABASE_HOST=cn-ci-db -e DATABASE_USER=postgres -e DATABASE_PASS=ci-test-only \
+            -e DATABASE_NAME=teslamate_test -e GEOCODING_PROVIDER=nominatim cn-tests
+
+  mirror:
+    if: ${{ inputs.source_digest != '' }}
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      SOURCE_DIGEST: ${{ inputs.source_digest }}
+      GHCR_IMAGE: ghcr.io/flamingyouth/teslamate-cn-geocoder
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Install image-copy tool
+        run: sudo apt-get update && sudo apt-get install -y skopeo
+      - name: Copy the exact tested manifest without rebuilding
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "$GH_TOKEN" | skopeo login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          source="docker://$ALIYUN_IMAGE@$SOURCE_DIGEST"
+          target="docker://$GHCR_IMAGE:$IMAGE_TAG"
+          if skopeo inspect --raw "$target" > existing-manifest.json 2>/dev/null; then
+            existing_digest="sha256:$(sha256sum existing-manifest.json | cut -d ' ' -f1)"
+            test "$existing_digest" = "$SOURCE_DIGEST" || { echo 'Refusing to overwrite a different released image'; exit 1; }
+          fi
+          skopeo copy --all --preserve-digests "$source" "$target"
+          skopeo inspect --raw "$target" > copied-manifest.json
+          actual_digest="sha256:$(sha256sum copied-manifest.json | cut -d ' ' -f1)"
+          test "$actual_digest" = "$SOURCE_DIGEST"
+          echo "Mirrored $IMAGE_TAG unchanged: $actual_digest" >> "$GITHUB_STEP_SUMMARY"
+          echo 'Package source labels link this image to FlamingYouth/teslamate-cn-geocoder.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Verify package public visibility and anonymous pulls before delivery.' >> "$GITHUB_STEP_SUMMARY"

@@ -18,6 +18,13 @@ defmodule TeslaMate.Locations.Geocoder do
   defp get(url, opts), do: Tesla.get(client(), url, opts)
 
   def reverse_lookup(lat, lon, lang \\ "en") do
+    case Application.get_env(:teslamate, :geocoding_provider, :nominatim) do
+      :baidu -> TeslaMate.Locations.Geocoder.Baidu.reverse_lookup(lat, lon)
+      :nominatim -> nominatim_reverse_lookup(lat, lon, lang)
+    end
+  end
+
+  defp nominatim_reverse_lookup(lat, lon, lang) do
     opts = [
       format: :jsonv2,
       addressdetails: 1,
@@ -35,6 +42,13 @@ defmodule TeslaMate.Locations.Geocoder do
   end
 
   def details(addresses, lang) when is_list(addresses) do
+    case Application.get_env(:teslamate, :geocoding_provider, :nominatim) do
+      :baidu -> TeslaMate.Locations.Geocoder.Baidu.details(addresses)
+      :nominatim -> nominatim_details(addresses, lang)
+    end
+  end
+
+  defp nominatim_details(addresses, lang) do
     osm_ids =
       addresses
       |> Enum.reject(fn %Address{} = a -> a.osm_id == nil or a.osm_type in [nil, "unknown"] end)

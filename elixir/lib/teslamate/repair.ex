@@ -37,7 +37,16 @@ defmodule TeslaMate.Repair do
   ## Repair
 
   @impl true
-  def handle_cast(:repair, %State{limit: limit} = state) do
+  def handle_cast(:repair, %State{} = state) do
+    case Application.get_env(:teslamate, :geocoding_provider, :nominatim) do
+      # Baidu is opt-in for new lookups only. Upstream's repair job would
+      # otherwise bulk-query historical null addresses on the first startup.
+      :baidu -> {:noreply, state}
+      :nominatim -> repair_missing_addresses(state)
+    end
+  end
+
+  defp repair_missing_addresses(%State{limit: limit} = state) do
     from(d in Drive,
       join: sp in assoc(d, :start_position),
       join: ep in assoc(d, :end_position),

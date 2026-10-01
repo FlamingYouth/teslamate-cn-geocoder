@@ -60,7 +60,7 @@ defmodule TeslaMate.Locations do
       addresses
       |> merge_addresses(attrs)
       |> Enum.each(fn
-        {%Address{osm_type: "unknown"}, _attrs} ->
+        {%Address{osm_type: "unknown"}, nil} ->
           :ignore
 
         {%Address{} = address, attrs} when is_map(attrs) ->
@@ -221,10 +221,11 @@ defmodule TeslaMate.Locations do
 
   def count_charging_processes_without_costs(%{latitude: _, longitude: _, radius: _} = geofence) do
     Repo.one(
-      from c in ChargingProcess,
+      from(c in ChargingProcess,
         select: count(),
         join: p in assoc(c, :position),
         where: is_nil(c.cost) and within_geofence?(p, geofence, :right)
+      )
     )
   end
 
