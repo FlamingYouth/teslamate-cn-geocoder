@@ -93,6 +93,8 @@ docker compose -f docker-compose.yml -f compose.cn.override.yml logs --tail=80 t
 
 业务补丁仅涉及 5 个文件：`geocoder.ex`、新增 `geocoder/baidu.ex`、`locations.ex`、`repair.ex`、`runtime.exs`。测试、文档、密钥忽略规则和专用发布流程单独维护。没有新增依赖；另按用户确认做最小安全更新，`mix.lock` 只修改以下两个已有依赖。
 
+原生验收还发现上游 `VaultTest` 两处全局 System 模拟会干扰后台数据库连接。只在测试中保留未模拟函数，并增加时间换算回归断言；生产加密/数据库实现不改，未跳过任何测试。详情见测试报告。
+
 ARM64 和 AMD64 必须从同一 Git 提交构建，运行完整测试，通过后才发布。GHCR 包绑定本 GitHub 仓库；阿里云和 GHCR 应复制同一个已测试的多架构清单，发布后比对 digest，禁止同标签分别重编译。
 
 升级其他官方版本时不能直接套用旧补丁镜像，要先重新核对接口、数据库和测试。不要把 TeslaMate 4000 端口直接开放到公网；使用原来的认证入口或受保护内网。

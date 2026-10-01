@@ -42,7 +42,10 @@ defmodule TeslaMate.VaultTest do
   @tag encryption_key: %{tmp_dir: "key_from_tmp_dir"},
        tmp_dir: "0"
   test "falls back to reading the encryption key from the tmp dir", %{tmp_dir: tmp_dir} do
-    with_mock System, [], tmp_dir: fn -> tmp_dir end do
+    # System is shared with the running Repo; unrelated functions must remain
+    # available while these file-location helpers are mocked.
+    with_mock System, [:passthrough], tmp_dir: fn -> tmp_dir end do
+      assert System.convert_time_unit(1, :second, :millisecond) == 1000
       start_supervised!(Vault)
 
       assert key_equals?("key_from_tmp_dir")
@@ -53,9 +56,10 @@ defmodule TeslaMate.VaultTest do
   @tag encryption_key: %{import_dir: "key_from_import_dir"},
        tmp_dir: "0"
   test "falls back to reading the encryption key from the import dir", %{tmp_dir: tmp_dir} do
-    with_mock System, [],
+    with_mock System, [:passthrough],
       tmp_dir: fn -> nil end,
       get_env: fn "IMPORT_DIR", "import" -> tmp_dir end do
+      assert System.convert_time_unit(1, :second, :millisecond) == 1000
       start_supervised!(Vault)
 
       assert key_equals?("key_from_import_dir")
